@@ -5,6 +5,8 @@
 
 #include "expl.h"
 
+#define parser_current_char(p, c) ((p)->src[(p)->pos] == (c))
+
 typedef struct {
 	const char* src;
 	size_t      pos;
@@ -17,17 +19,18 @@ static expl_node* node_new(expl_type type);
 static void node_free(expl_node* node);
 static void skip_whitespace(parser* p);
 
-static expl_node* atom(parser* p)
+static expl_node*
+atom(parser* p)
 {
 	size_t start = p->pos;
 	expl_node* node = NULL;
-
-	while (p->src[p->pos] &&
-	       !isspace((unsigned char)p->src[p->pos]) &&
-	       p->src[p->pos] != '(' &&
-	       p->src[p->pos] != ')' &&
-	       p->src[p->pos] != '"' &&
-	       p->src[p->pos] != ';')
+	
+	while (!parser_current_char(p, '(') &&
+	       !parser_current_char(p, ')') &&
+	       !parser_current_char(p, '"') &&
+	       !parser_current_char(p, ';') &&
+	       !parser_current_char(p, '\0') &&
+	       !isspace((unsigned char)p->src[p->pos]))
 		p->pos++;
 	
 	if (start == p->pos) {
@@ -94,12 +97,13 @@ node_free(expl_node* node)
 	free(node);
 }
 
-static void skip_whitespace(parser* p)
+static void
+skip_whitespace(parser* p)
 {
-	while (isspace((unsigned char)p->src[p->pos]) || p->src[p->pos] == ';') {
+	while (isspace((unsigned char)p->src[p->pos]) || parser_current_char(p, ';')) {
 		/* comment */
-		if (p->src[p->pos] == ';') {
-			while (p->src[p->pos] != '\n' && p->src[p->pos] != '\0')
+		if (parser_current_char(p, ';')) {
+			while (!parser_current_char(p, '\n') && !parser_current_char(p, '\0'))
 				p->pos++;
 		}
 
