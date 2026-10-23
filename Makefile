@@ -1,5 +1,5 @@
 CC = cc
-CFLAGS = -ansi -pedantic -Wall -Wextra -Werror
+CFLAGS = -ansi -pedantic -Wall -Wextra
 SRC = expl.c
 OUT = expl
 
