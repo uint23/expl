@@ -30,7 +30,7 @@ expression(parser* p)
 	skipspace(p);
 	switch (p->src[p->pos]) {
 	case '"':
-		return value(p, EXPL_STRING);
+		return value(p, EXPL_TYPE_STRING);
 	case '(':
 		return list(p);
 	case ')':
@@ -38,7 +38,7 @@ expression(parser* p)
 		p->err = EXPL_ERR_UNEXPECTED_TOKEN;
 		return NULL;
 	default:
-		return value(p, EXPL_ATOM);
+		return value(p, EXPL_TYPE_ATOM);
 	}
 }
 
@@ -50,7 +50,7 @@ list(parser* p)
 
 	advance(p);
 
-	node = newnode(EXPL_LIST);
+	node = newnode(EXPL_TYPE_LIST);
 	if (!node) {
 		p->err = EXPL_ERR_OUT_OF_MEMORY;
 		return NULL;
@@ -86,12 +86,12 @@ value(parser* p, expl_type type)
 	expl_node* node = NULL;
 	size_t start = 0;
 
-	if (type == EXPL_STRING)
+	if (type == EXPL_TYPE_STRING)
 		advance(p);
 
 	start = p->pos;
 
-	if (type == EXPL_STRING) {
+	if (type == EXPL_TYPE_STRING) {
 		while (!current_char(p, '"') && !current_char(p, '\0')) {
 			if (current_char(p, '\\') && p->src[p->pos + 1])
 				advance(p);
@@ -110,7 +110,7 @@ value(parser* p, expl_type type)
 			advance(p);
 	}
 
-	if (start == p->pos && type == EXPL_ATOM) {
+	if (start == p->pos && type == EXPL_TYPE_ATOM) {
 		p->err = EXPL_ERR_EXPECTED_ATOM;
 		return NULL;
 	}
@@ -128,7 +128,7 @@ value(parser* p, expl_type type)
 		return NULL;
 	}
 
-	if (type == EXPL_STRING)
+	if (type == EXPL_TYPE_STRING)
 		advance(p);
 
 	return node;
@@ -227,13 +227,13 @@ expl_print(const expl_node* node, int depth)
 			printf(EXPL_SPACES);
 
 		switch (node->type) {
-		case EXPL_ATOM:
+		case EXPL_TYPE_ATOM:
 			printf("ATOM: %s\n", node->value);
 			break;
-		case EXPL_STRING:
+		case EXPL_TYPE_STRING:
 			printf("STRING: %s\n", node->value);
 			break;
-		case EXPL_LIST:
+		case EXPL_TYPE_LIST:
 			printf("LIST:\n");
 			expl_print(node->child, depth + 1);
 			break;
