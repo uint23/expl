@@ -37,7 +37,7 @@ atom(parser* p)
 	       !current_char(p, ';') &&
 	       !current_char(p, '\0') &&
 	       !isspace((unsigned char)p->src[p->pos]))
-		p->pos++;
+		advance(p);
 	
 	if (start == p->pos) {
 		p->err = EXPL_ERR_EXPECTED_ATOM;
@@ -142,8 +142,8 @@ string(parser* p)
 
 	while (!current_char(p, '"') && !current_char(p, '\0')) {
 		if (current_char(p, '\\') && p->src[p->pos + 1])
-			p->pos++;
-		p->pos++;
+			advance(p);
+		advance(p);
 	}
 
 	if (current_char(p, '\0')) {
@@ -175,12 +175,12 @@ skipspace(parser* p)
 		/* comment */
 		if (current_char(p, ';')) {
 			while (!current_char(p, '\n') && !current_char(p, '\0'))
-				p->pos++;
+				advance(p);
 		}
 
 		/* whitespace */
 		else
-			p->pos++;
+			advance(p);
 	}
 }
 
