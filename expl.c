@@ -230,27 +230,25 @@ freenode(expl_node* node)
 expl_node*
 expl_parse(const char* source)
 {
-	expl_node* node = NULL;
 	parser p = { 0 };
+	expl_node* head = NULL;
+	expl_node** next = &head;
+
 	p.src = source;
 
 	skipspace(&p);
-	if (current_char(&p, '('))
-		node = list(&p);
-	else
-		node = expression(&p);
+	while (!current_char(&p, '\0')) {
+		*next = expression(&p);
+		if (!*next) {
+			freenode(head);
+			return NULL;
+		}
 
-	if (!node)
-		return NULL;
-
-	skipspace(&p);
-	if (!current_char(&p, '\0')) {
-		freenode(node);
-		p.err = EXPL_ERR_UNEXPECTED_TOKEN;
-		return NULL;
+		next = &(*next)->next;
+		skipspace(&p);
 	}
 
-	return node;
+	return head;
 }
 
 void
