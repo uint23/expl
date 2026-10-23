@@ -6,7 +6,7 @@
 #include "expl.h"
 
 #define current_char(p, c) ((p)->src[(p)->pos] == (c))
-#define advance(p) ((p)->pos++) /* XXX */
+#define advance(p) ((p)->pos++)
 
 typedef struct {
 	const char* src;
@@ -14,10 +14,9 @@ typedef struct {
 	expl_error  err;
 } parser;
 
-static expl_node* atom(parser* p);
 static expl_node* expression(parser* p);
 static expl_node* list(parser* p);
-static expl_node* string(parser* p);
+static expl_node* value(parser* p, expl_type type);
 
 static void skipspace(parser* p);
 static char* _strndup(const char* src, size_t len);
@@ -26,47 +25,12 @@ static expl_node* newnode(expl_type type);
 static void freenode(expl_node* node);
 
 static expl_node*
-atom(parser* p)
-{
-	size_t start = p->pos;
-	expl_node* node = NULL;
-	
-	while (!current_char(p, '(') &&
-	       !current_char(p, ')') &&
-	       !current_char(p, '"') &&
-	       !current_char(p, ';') &&
-	       !current_char(p, '\0') &&
-	       !isspace((unsigned char)p->src[p->pos]))
-		advance(p);
-	
-	if (start == p->pos) {
-		p->err = EXPL_ERR_EXPECTED_ATOM;
-		return NULL;
-	}
-	
-	node = newnode(EXPL_ATOM);
-	if (!node) {
-		p->err = EXPL_ERR_OUT_OF_MEMORY;
-		return NULL;
-	}
-
-	node->value = _strndup(p->src + start, p->pos - start);
-	if (!node->value) {
-		freenode(node);
-		p->err = EXPL_ERR_OUT_OF_MEMORY;
-		return NULL;
-	}
-	
-	return node;
-}
-
-static expl_node*
 expression(parser* p)
 {
 	skipspace(p);
 	switch (p->src[p->pos]) {
 	case '"':
-		return string(p);
+		return value(p, EXPL_STRING);
 	case '(':
 		return list(p);
 	case ')':
@@ -74,7 +38,7 @@ expression(parser* p)
 		p->err = EXPL_ERR_UNEXPECTED_TOKEN;
 		return NULL;
 	default:
-		return atom(p);
+		return value(p, EXPL_ATOM);
 	}
 }
 
@@ -82,14 +46,7 @@ static expl_node*
 list(parser* p)
 {
 	expl_node* node = NULL;
-	expl_node* tail = NULL;
-	expl_node* subnode = NULL;
-
-	skipspace(p);
-	if (!current_char(p, '(')) {
-		p->err = EXPL_ERR_EXPECTED_LIST;
-		return NULL;
-	}
+	expl_node** next = NULL;
 
 	advance(p);
 
@@ -99,26 +56,23 @@ list(parser* p)
 		return NULL;
 	}
 
+	next = &node->child;
+
 	skipspace(p);
 	while (!current_char(p, ')') && !current_char(p, '\0')) {
-		subnode = expression(p);
-		if (!subnode) {
+		*next = expression(p);
+		if (!*next) {
 			freenode(node);
 			return NULL;
 		}
 
-		if (tail)
-			tail->next = subnode;
-		else
-			node->child = subnode;
-
-		tail = subnode;
+		next = &(*next)->next;
 		skipspace(p);
 	}
 
-	if (!current_char(p, ')')) {
-		freenode(node);
+	if (current_char(p, '\0')) {
 		p->err = EXPL_ERR_EXPECTED_LIST;
+		freenode(node);
 		return NULL;
 	}
 
@@ -127,43 +81,55 @@ list(parser* p)
 }
 
 static expl_node*
-string(parser* p)
+value(parser* p, expl_type type)
 {
 	expl_node* node = NULL;
 	size_t start = 0;
 
-	if (!current_char(p, '"')) {
-		p->err = EXPL_ERR_EXPECTED_STRING;
-		return NULL;
-	}
+	if (type == EXPL_STRING)
+		advance(p);
 
-	advance(p); /* skip opening " */
 	start = p->pos;
 
-	while (!current_char(p, '"') && !current_char(p, '\0')) {
-		if (current_char(p, '\\') && p->src[p->pos + 1])
+	if (type == EXPL_STRING) {
+		while (!current_char(p, '"') && !current_char(p, '\0')) {
+			if (current_char(p, '\\') && p->src[p->pos + 1])
+				advance(p);
 			advance(p);
-		advance(p);
+		}
+
+		if (current_char(p, '\0')) {
+			p->err = EXPL_ERR_EXPECTED_STRING;
+			return NULL;
+		}
+	}
+	else {
+		while (p->src[p->pos] &&
+		       !strchr("();\"", p->src[p->pos]) &&
+		       !isspace((unsigned char)p->src[p->pos]))
+			advance(p);
 	}
 
-	if (current_char(p, '\0')) {
-		p->err = EXPL_ERR_EXPECTED_STRING;
+	if (start == p->pos && type == EXPL_ATOM) {
+		p->err = EXPL_ERR_EXPECTED_ATOM;
 		return NULL;
 	}
 
-	node = newnode(EXPL_STRING);
+	node = newnode(type);
 	if (!node) {
 		p->err = EXPL_ERR_OUT_OF_MEMORY;
 		return NULL;
 	}
 
 	node->value = _strndup(p->src + start, p->pos - start);
-	advance(p); /* skip closing " */
 	if (!node->value) {
 		freenode(node);
 		p->err = EXPL_ERR_OUT_OF_MEMORY;
 		return NULL;
 	}
+
+	if (type == EXPL_STRING)
+		advance(p);
 
 	return node;
 }
