@@ -15,11 +15,15 @@ typedef struct {
 } parser;
 
 static expl_node* atom(parser* p);
+static expl_node* expression(parser* p);
+static expl_node* list(parser* p);
+static expl_node* string(parser* p);
+
+static void skipspace(parser* p);
+static char* _strndup(const char* src, size_t len);
+
 static expl_node* node_new(expl_type type);
 static void node_free(expl_node* node);
-static void skip_whitespace(parser* p);
-static expl_node* string(parser* p);
-static char* _strndup(const char* src, size_t len);
 
 static expl_node*
 atom(parser* p)
@@ -57,49 +61,25 @@ atom(parser* p)
 }
 
 static expl_node*
-node_new(expl_type type)
+expression(parser* p)
 {
-	expl_node* node = malloc(sizeof(*node));
-	if (!node)
+	skipspace(p);
+	switch (p->src[p->pos]) {
+	case '"':
+		return string(p);
+	case '(':
+	case ')':
+	case '\0':
+		p->err = EXPL_ERR_UNEXPECTED_TOKEN;
 		return NULL;
-
-	node->type = type;
-	node->value = NULL;
-	node->child = NULL;
-	node->next = NULL;
-
-	return node;
-}
-
-static void
-node_free(expl_node* node)
-{
-	if (!node)
-		return;
-
-	if (node->value)
-		free(node->value);
-
-	node_free(node->child);
-	node_free(node->next);
-
-	free(node);
-}
-
-static void
-skip_whitespace(parser* p)
-{
-	while (isspace((unsigned char)p->src[p->pos]) || current_char(p, ';')) {
-		/* comment */
-		if (parser_current_char(p, ';')) {
-			while (!parser_current_char(p, '\n') && !parser_current_char(p, '\0'))
-				p->pos++;
-		}
-
-		/* whitespace */
-		else
-			p->pos++;
+	default:
+		return atom(p);
 	}
+}
+
+static expl_node*
+list(parser* p)
+{
 }
 
 static expl_node*
@@ -144,6 +124,22 @@ string(parser* p)
 	return node;
 }
 
+static void
+skipspace(parser* p)
+{
+	while (isspace((unsigned char)p->src[p->pos]) || current_char(p, ';')) {
+		/* comment */
+		if (current_char(p, ';')) {
+			while (!current_char(p, '\n') && !current_char(p, '\0'))
+				p->pos++;
+		}
+
+		/* whitespace */
+		else
+			p->pos++;
+	}
+}
+
 static char*
 _strndup(const char* src, size_t len)
 {
@@ -155,6 +151,36 @@ _strndup(const char* src, size_t len)
 	str[len] = '\0';
 
 	return str;
+}
+
+static expl_node*
+node_new(expl_type type)
+{
+	expl_node* node = malloc(sizeof(*node));
+	if (!node)
+		return NULL;
+
+	node->type = type;
+	node->value = NULL;
+	node->child = NULL;
+	node->next = NULL;
+
+	return node;
+}
+
+static void
+node_free(expl_node* node)
+{
+	if (!node)
+		return;
+
+	if (node->value)
+		free(node->value);
+
+	node_free(node->child);
+	node_free(node->next);
+
+	free(node);
 }
 
 int
