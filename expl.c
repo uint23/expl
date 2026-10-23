@@ -5,7 +5,8 @@
 
 #include "expl.h"
 
-#define parser_current_char(p, c) ((p)->src[(p)->pos] == (c))
+#define current_char(p, c) ((p)->src[(p)->pos] == (c))
+#define advance(p) ((p)->pos++) /* XXX */
 
 typedef struct {
 	const char* src;
@@ -14,10 +15,11 @@ typedef struct {
 } parser;
 
 static expl_node* atom(parser* p);
-static char* _strndup(const char* src, size_t len);
 static expl_node* node_new(expl_type type);
 static void node_free(expl_node* node);
 static void skip_whitespace(parser* p);
+static expl_node* string(parser* p);
+static char* _strndup(const char* src, size_t len);
 
 static expl_node*
 atom(parser* p)
@@ -25,11 +27,11 @@ atom(parser* p)
 	size_t start = p->pos;
 	expl_node* node = NULL;
 	
-	while (!parser_current_char(p, '(') &&
-	       !parser_current_char(p, ')') &&
-	       !parser_current_char(p, '"') &&
-	       !parser_current_char(p, ';') &&
-	       !parser_current_char(p, '\0') &&
+	while (!current_char(p, '(') &&
+	       !current_char(p, ')') &&
+	       !current_char(p, '"') &&
+	       !current_char(p, ';') &&
+	       !current_char(p, '\0') &&
 	       !isspace((unsigned char)p->src[p->pos]))
 		p->pos++;
 	
@@ -52,19 +54,6 @@ atom(parser* p)
 	}
 	
 	return node;
-}
-
-static char*
-_strndup(const char* src, size_t len)
-{
-	char* str = malloc(len + 1);
-	if (!str)
-		return NULL;
-
-	memcpy(str, src, len);
-	str[len] = '\0';
-
-	return str;
 }
 
 static expl_node*
@@ -100,7 +89,7 @@ node_free(expl_node* node)
 static void
 skip_whitespace(parser* p)
 {
-	while (isspace((unsigned char)p->src[p->pos]) || parser_current_char(p, ';')) {
+	while (isspace((unsigned char)p->src[p->pos]) || current_char(p, ';')) {
 		/* comment */
 		if (parser_current_char(p, ';')) {
 			while (!parser_current_char(p, '\n') && !parser_current_char(p, '\0'))
@@ -111,6 +100,61 @@ skip_whitespace(parser* p)
 		else
 			p->pos++;
 	}
+}
+
+static expl_node*
+string(parser* p)
+{
+	expl_node* node = NULL;
+	size_t start = 0;
+
+	if (!current_char(p, '"')) {
+		p->err = EXPL_ERR_EXPECTED_STRING;
+		return NULL;
+	}
+
+	start = p->pos;
+	advance(p); /* skip opening " */
+
+	while (!current_char(p, '"') && !current_char(p, '\0')) {
+		if (current_char(p, '\\') && p->src[p->pos + 1])
+			p->pos++;
+		p->pos++;
+	}
+
+	if (current_char(p, '\0')) {
+		p->err = EXPL_ERR_EXPECTED_STRING;
+		return NULL;
+	}
+
+	node = node_new(EXPL_STRING);
+	if (!node) {
+		p->err = EXPL_ERR_OUT_OF_MEMORY;
+		return NULL;
+	}
+
+	node->value = _strndup(p->src + start, p->pos - start);
+	advance(p); /* skip closing " */
+	if (!node->value) {
+		node_free(node);
+		p->err = EXPL_ERR_OUT_OF_MEMORY;
+		return NULL;
+	}
+
+	return node;
+}
+
+static char*
+_strndup(const char* src, size_t len)
+{
+	char* str = malloc(len + 1);
+	if (!str)
+		return NULL;
+
+	memcpy(str, src, len);
+	str[len] = '\0';
+
+	return str;
 }
 
 int
