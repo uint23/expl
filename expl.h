@@ -1,6 +1,10 @@
 #ifndef EXPL_H
 #define EXPL_H
 
+#ifndef EXPL_SPACES
+#define EXPL_SPACES "  "
+#endif
+
 typedef enum {
 	EXPL_ATOM,
 	EXPL_STRING,
@@ -28,6 +32,9 @@ struct expl_node {
 	expl_node* child;
 	expl_node* next;
 };
+
+void expl_print(const expl_node* node, int depth);
+expl_node* expl_parse(const char* source);
 
 #endif /* EXPL_H */
 
