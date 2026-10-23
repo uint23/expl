@@ -137,8 +137,8 @@ string(parser* p)
 		return NULL;
 	}
 
-	start = p->pos;
 	advance(p); /* skip opening " */
+	start = p->pos;
 
 	while (!current_char(p, '"') && !current_char(p, '\0')) {
 		if (current_char(p, '\\') && p->src[p->pos + 1])
@@ -285,7 +285,7 @@ expl_print(const expl_node* node, int depth)
 int
 main(void)
 {
-	expl_node* node = expl_parse("(fn (square x) (* x x))");
+	expl_node* node = expl_parse("(fn (\"hi\" x) (* x x))");
 	expl_print(node, 0);
 	freenode(node);
 	return EXIT_SUCCESS;
