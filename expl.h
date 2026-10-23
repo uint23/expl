@@ -9,6 +9,14 @@ typedef enum {
 	EXPL_TYPE_COUNT
 } expl_type;
 
+typedef enum {
+	EXPL_ERR_NONE,
+	EXPL_ERR_EXPECTED_ATOM,
+	EXPL_ERR_OUT_OF_MEMORY,
+
+	EXPL_ERR_COUNT
+} expl_error;
+
 typedef struct expl_node expl_node;
 
 struct expl_node {
