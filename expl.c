@@ -23,8 +23,8 @@ struct function {
 	expl_native native;
 	expl_node*  args;
 	expl_node*  body;
+	void*       data;
 };
-
 struct environment {
 	char*        name;
 	expl_value   value;
@@ -41,13 +41,14 @@ static int define(environment** env, const char* name, expl_value value);
 static expl_node* expression(parser* p);
 static expl_node* list(parser* p);
 static expl_value* lookup(environment* env, const char* name);
+expl_node* parse(const char* source);
 static expl_node* value(parser* p, expl_type type);
 
 static expl_value eval(expl_node* n, environment** env);
 static expl_value eval_call(expl_node* args, environment** env);
 static expl_value eval_fn(expl_node* args, environment** env);
 static expl_value eval_user(function* f, int argc, expl_value* argv, environment** env);
-static int register_native(environment** env, const char* name, expl_native fn);
+static int register_native(environment** env, const char* name, expl_native fn, void* data);
 
 static void skip_space(parser* p);
 static char* _strndup(const char* src, size_t len);
@@ -56,25 +57,6 @@ static void unescape(char* src);
 static expl_node* new_node(expl_type type);
 static void free_node(expl_node* node);
 static void free_environment(environment* env);
-
-static expl_value
-add(int argc, const expl_value* argv)
-{
-	expl_value result = { 0 };
-	expl_value fail = { 0 };
-	int i;
-
-	result.type = EXPL_VALUE_NUMBER;
-
-	for (i = 0; i < argc; i++) {
-		if (argv[i].type != EXPL_VALUE_NUMBER)
-			return fail;
-
-		result.as.number += argv[i].as.number;
-	}
-
-	return result;
-}
 
 static int
 define(environment** env, const char* name, expl_value value)
@@ -162,6 +144,32 @@ lookup(environment* env, const char* name)
 	}
 
 	return NULL;
+}
+
+expl_node*
+parse(const char* source)
+{
+	parser p = { 0 };
+	expl_node* head = NULL;
+	expl_node** next = &head;
+
+	if (!source)
+		return NULL;
+	p.src = source;
+
+	skip_space(&p);
+	while (!current_char(&p, '\0')) {
+		*next = expression(&p);
+		if (!*next) {
+			free_node(head);
+			return NULL;
+		}
+
+		next = &(*next)->next;
+		skip_space(&p);
+	}
+
+	return head;
 }
 
 static expl_node*
@@ -295,7 +303,7 @@ eval_call(expl_node* n, environment** env)
 	/* call */
 	f = fn->as.function;
 	if (f->native)
-		result = f->native(argc, argv);
+		result = f->native(argc, argv, f->data);
 	else
 		result = eval_user(f, argc, argv, env);
 
@@ -367,7 +375,7 @@ eval_user(function* f, int argc, expl_value* argv, environment** env)
 }
 
 static int
-register_native(environment** env, const char* name, expl_native fn)
+register_native(environment** env, const char* name, expl_native fn, void* data)
 {
 	function* f = malloc(sizeof(*f));
 	expl_value value = { 0 };
@@ -378,6 +386,7 @@ register_native(environment** env, const char* name, expl_native fn)
 	f->native = fn;
 	f->args = NULL;
 	f->body = NULL;
+	f->data = data;
 
 	value.type = EXPL_VALUE_FUNCTION;
 	value.as.function = f;
@@ -493,36 +502,57 @@ free_environment(environment* env)
 	}
 }
 
-expl* expl_init(void);
-void expl_close(expl* ctx);
-int expl_register(expl* ctx, const char* name, expl_native fn);
-expl_value expl_run(expl* ctx, const char* source);
-void expl_print(const expl_node* node, int depth);
-
-expl_node*
-expl_parse(const char* source)
+expl* expl_init(void)
 {
-	parser p = { 0 };
-	expl_node* head = NULL;
-	expl_node** next = &head;
+	return calloc(1, sizeof(expl));
+}
 
-	if (!source)
-		return NULL;
-	p.src = source;
+void expl_close(expl* ctx)
+{
+	if (!ctx)
+		return;
 
-	skip_space(&p);
-	while (!current_char(&p, '\0')) {
-		*next = expression(&p);
-		if (!*next) {
-			free_node(head);
-			return NULL;
-		}
+	free_environment(ctx->env);
+	free_node(ctx->programs);
+	free(ctx);
+}
 
-		next = &(*next)->next;
-		skip_space(&p);
+int
+expl_register(expl* ctx, const char* name, expl_native fn, void* data)
+{
+	if (!ctx || !name || !fn)
+		return 0;
+
+	return register_native(&ctx->env, name, fn, data);
+}
+
+expl_value
+expl_run(expl* ctx, const char* source)
+{
+	expl_value result = { 0 };
+	expl_node* program = NULL;
+	expl_node* n = NULL;
+
+	if (!ctx || !source)
+		return result;
+
+	program = parse(source);
+	if (!program)
+		return result;
+
+	for (n = program; n; n = n->next)
+		result = eval(n, &ctx->env);
+
+	if (ctx->programs) {
+		n = ctx->programs;
+		while (n->next)
+			n = n->next;
+		n->next = program;
 	}
+	else
+		ctx->programs = program;
 
-	return head;
+	return result;
 }
 
 void
@@ -554,27 +584,39 @@ expl_print(const expl_node* node, int depth)
 }
 
 #if 1
+static expl_value
+birds_who_hit_my_window(int argc, const expl_value* argv, void* data)
+{
+	int* count = (int*)data;
+	expl_value result = { 0 };
+
+	if (argc == 1 && argv[0].type == EXPL_VALUE_NUMBER)
+		*count += (int)argv[0].as.number;
+
+	result.type = EXPL_VALUE_NUMBER;
+	result.as.number = *count;
+
+	return result;
+}
+
+#define FIND_THE_BIRDS \
+"(fn foo (x) (birds_who_hit_window x))\n" \
+"(foo 134)\n"
+
 int
 main(void)
 {
-	environment* env = NULL;
-	expl_node* program = NULL;
-	expl_node* n = NULL;
-	expl_value result = { 0 };
+	int birds_who_hit_my_window_c = 0;
+	expl* ctx = expl_init();
 
-	if (!register_native(&env, "+", add))
+	if (!ctx)
 		return EXIT_FAILURE;
 
-	program = expl_parse(
-		"(fn add (x y) (+ x y))\n"
-		"(add 10 20)"
-	);
+	expl_register(ctx, "birds_who_hit_my_window", birds_who_hit_my_window, &birds_who_hit_my_window_c);
+	expl_run(ctx, FIND_THE_BIRDS);
+	printf("Stupid birds: %d\n", birds_who_hit_my_window_c);
 
-	for (n = program; n; n = n->next)
-		result = eval(n, &env);
-
-	printf("%g\n", result.as.number);
-
+	expl_close(ctx);
 	return EXIT_SUCCESS;
 }
 #endif
