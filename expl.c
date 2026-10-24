@@ -200,6 +200,8 @@ expl_parse(const char* source)
 	expl_node* head = NULL;
 	expl_node** next = &head;
 
+	if (!source)
+		return NULL;
 	p.src = source;
 
 	skipspace(&p);
