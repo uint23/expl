@@ -8,16 +8,28 @@
 #define current_char(p, c) ((p)->src[(p)->pos] == (c))
 #define advance(p) ((p)->pos++)
 #define pos(p) ((p)->pos)
-#define peek(p) ((p)->pos + 1)
+#define peek(p) ((p)->src[(p)->pos + 1])
 
-typedef struct {
+typedef struct parser parser;
+typedef struct environment environment;
+
+struct parser {
 	const char* src;
 	size_t      pos;
 	expl_error  err;
-} parser;
+};
 
+struct environment {
+	char*      name;
+	expl_node* value;
+	environment*   next;
+};
+
+static int define(environment** env, const char* name, expl_node* value);
 static expl_node* expression(parser* p);
+static expl_node* evaluate(expl_node* n, environment** env);
 static expl_node* list(parser* p);
+static expl_node* lookup(environment* env, const char* name);
 static expl_node* value(parser* p, expl_type type);
 
 static void skipspace(parser* p);
@@ -26,6 +38,27 @@ static void unescape(char* src);
 
 static expl_node* newnode(expl_type type);
 static void freenode(expl_node* node);
+static void freeenv(environment* env);
+
+static int
+define(environment** env, const char* name, expl_node* value)
+{
+	environment* b = malloc(sizeof(*b));
+	if (!b)
+		return 0;
+
+	b->name = _strndup(name, strlen(name));
+	if (!b->name) {
+		free(b);
+		return 0;
+	}
+
+	b->value = value;
+	b->next = *env;
+	*env = b;
+
+	return 1;
+}
 
 static expl_node*
 expression(parser* p)
@@ -43,6 +76,15 @@ expression(parser* p)
 	default:
 		return value(p, EXPL_TYPE_ATOM);
 	}
+}
+
+static expl_node*
+evaluate(expl_node* n, environment** env)
+{
+	/* XXX */
+	(void) n;
+	(void) env;
+	return NULL;
 }
 
 static expl_node*
@@ -81,6 +123,18 @@ list(parser* p)
 
 	advance(p);
 	return node;
+}
+
+static expl_node*
+lookup(environment* env, const char* name)
+{
+	while (env) {
+		if (strcmp(env->name, name) == 0)
+			return env->value;
+		env = env->next;
+	}
+
+	return NULL;
 }
 
 static expl_node*
@@ -227,6 +281,17 @@ freenode(expl_node* node)
 	free(node);
 }
 
+static void
+freeenv(environment* env)
+{
+	while (env) {
+		environment* next = env->next;
+		free(env->name);
+		free(env);
+		env = next;
+	}
+}
+
 expl_node*
 expl_parse(const char* source)
 {
@@ -285,7 +350,7 @@ expl_print(const expl_node* node, int depth)
 int
 main(void)
 {
-	expl_node* node = expl_parse("(fn (\"hi\n\n\n\" x) (* x x))");
+	expl_node* node = expl_parse("(fn (\"hi\" x) (* x x))");
 	expl_print(node, 0);
 	freenode(node);
 	return EXIT_SUCCESS;
