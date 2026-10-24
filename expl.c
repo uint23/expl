@@ -10,8 +10,20 @@
 #define pos(p) ((p)->pos)
 #define peek(p) ((p)->src[(p)->pos + 1])
 
-typedef struct parser parser;
+typedef struct function function;
 typedef struct environment environment;
+typedef struct parser parser;
+
+struct function {
+	expl_node* args;
+	expl_node* body;
+};
+
+struct environment {
+	char*        name;
+	expl_node*   value;
+	environment* next;
+};
 
 struct parser {
 	const char* src;
@@ -19,18 +31,14 @@ struct parser {
 	expl_error  err;
 };
 
-struct environment {
-	char*      name;
-	expl_node* value;
-	environment*   next;
-};
-
 static int define(environment** env, const char* name, expl_node* value);
 static expl_node* expression(parser* p);
-static expl_node* evaluate(expl_node* n, environment** env);
 static expl_node* list(parser* p);
 static expl_node* lookup(environment* env, const char* name);
 static expl_node* value(parser* p, expl_type type);
+
+static expl_node* eval(expl_node* n, environment** env);
+static expl_node* eval_let(expl_node* args, environment** env);
 
 static void skip_space(parser* p);
 static char* _strndup(const char* src, size_t len);
@@ -76,15 +84,6 @@ expression(parser* p)
 	default:
 		return value(p, EXPL_TYPE_ATOM);
 	}
-}
-
-static expl_node*
-evaluate(expl_node* n, environment** env)
-{
-	/* XXX */
-	(void) n;
-	(void) env;
-	return NULL;
 }
 
 static expl_node*
@@ -191,6 +190,39 @@ value(parser* p, expl_type type)
 	}
 
 	return node;
+}
+
+static expl_node*
+evaluate(expl_node* n, environment** env)
+{
+	char* end = NULL;
+
+	if (!n)
+		return NULL;
+
+	switch (n->type) {
+	case EXPL_TYPE_STRING:
+		return n;
+
+	case EXPL_TYPE_ATOM:
+		strtod(n->value, &end);
+		if (end != n->value && !*end)
+			return n;
+
+		return lookup(*env, n->value);
+
+	case EXPL_TYPE_LIST:
+		/* XXX */
+		return NULL;
+
+	default:
+		return NULL;
+	}
+}
+
+static expl_node*
+eval_let(expl_node* args, environment** env)
+{
 }
 
 static void

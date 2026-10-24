@@ -15,14 +15,12 @@ typedef enum {
 
 typedef enum {
 	EXPL_VALUE_NIL,
-	EXPL_VALUE_INTGER,
-	EXPL_VALUE_FLOAT,
+	EXPL_VALUE_NUMBER,
 	EXPL_VALUE_STRING,
 	EXPL_VALUE_FUNCTION,
-	EXPL_VALUE_NATIVE,
 
 	EXPL_VALUE_COUNT
-} expl_value;
+} expl_value_type;
 
 typedef enum {
 	EXPL_ERR_NONE,
@@ -36,12 +34,22 @@ typedef enum {
 } expl_error;
 
 typedef struct expl_node expl_node;
+typedef struct expl_value expl_value;
 
 struct expl_node {
 	char*      value;
 	expl_type  type;
 	expl_node* child;
 	expl_node* next;
+};
+
+struct expl_value {
+	expl_value_type type;
+	union {
+		double number;
+		char*  string;
+		void*  function;
+	} as;
 };
 
 void expl_print(const expl_node* node, int depth);
