@@ -394,16 +394,15 @@ eval_user(function* f, int argc, expl_value* argv, environment** env)
 static void
 skip_space(parser* p)
 {
-	while (isspace((unsigned char)current(p)) || is(p, ';')) {
-		/* comment */
+	for (;;) {
 		if (is(p, ';')) {
 			while (!is(p, '\n') && !end(p))
 				advance(p);
 		}
-
-		/* whitespace */
-		else
+		else if (isspace((unsigned char)current(p)))
 			advance(p);
+		else
+			break;
 	}
 }
 
@@ -465,12 +464,9 @@ free_node(expression* node)
 	if (!node)
 		return;
 
-	if (node->value)
-		free(node->value);
-
+	free(node->value);
 	free_node(node->child);
 	free_node(node->next);
-
 	free(node);
 }
 
