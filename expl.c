@@ -7,6 +7,8 @@
 
 #define current_char(p, c) ((p)->src[(p)->pos] == (c))
 #define advance(p) ((p)->pos++)
+#define pos(p) ((p)->pos)
+#define peek(p) ((p)->pos + 1)
 
 typedef struct {
 	const char* src;
@@ -20,6 +22,7 @@ static expl_node* value(parser* p, expl_type type);
 
 static void skipspace(parser* p);
 static char* _strndup(const char* src, size_t len);
+static void unescape(char* src);
 
 static expl_node* newnode(expl_type type);
 static void freenode(expl_node* node);
@@ -128,8 +131,10 @@ value(parser* p, expl_type type)
 		return NULL;
 	}
 
-	if (type == EXPL_TYPE_STRING)
+	if (type == EXPL_TYPE_STRING) {
+		unescape(node->value);
 		advance(p);
+	}
 
 	return node;
 }
@@ -161,6 +166,35 @@ _strndup(const char* src, size_t len)
 	str[len] = '\0';
 
 	return str;
+}
+
+static void
+unescape(char* src)
+{
+	char* dst = src;
+
+	while (*src) {
+		if (*src == '\\' && src[1]) {
+			src++;
+			switch (*src) {
+			case 'n':  *dst++ = '\n'; break;
+			case 't':  *dst++ = '\t'; break;
+			case 'r':  *dst++ = '\r'; break;
+			case '\\': *dst++ = '\\'; break;
+			case '"':  *dst++ = '"';  break;
+			default:
+				*dst++ = '\\';
+				*dst++ = *src;
+			}
+		}
+		else {
+			*dst++ = *src;
+		}
+
+		src++;
+	}
+
+	*dst = '\0';
 }
 
 static expl_node*
@@ -251,7 +285,7 @@ expl_print(const expl_node* node, int depth)
 int
 main(void)
 {
-	expl_node* node = expl_parse("(fn (\"hi\" x) (* x x))");
+	expl_node* node = expl_parse("(fn (\"hi\n\n\n\" x) (* x x))");
 	expl_print(node, 0);
 	freenode(node);
 	return EXIT_SUCCESS;
