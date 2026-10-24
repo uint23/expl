@@ -10,25 +10,33 @@
 #define pos(p) ((p)->pos)
 #define peek(p) ((p)->src[(p)->pos + 1])
 
-typedef struct function function;
 typedef struct environment environment;
+typedef struct function function;
 typedef struct parser parser;
 
 struct expl {
 	environment* env;
-	expl_node*   programs;
+	expression*  programs;
 };
 
-struct function {
-	expl_native native;
-	expl_node*  args;
-	expl_node*  body;
-	void*       data;
-};
 struct environment {
 	char*        name;
 	expl_value   value;
 	environment* next;
+};
+
+struct function {
+	expl_native native;
+	expression*  args;
+	expression*  body;
+	void*       data;
+};
+
+struct expression {
+	char*      value;
+	expl_type  type;
+	expression* child;
+	expression* next;
 };
 
 struct parser {
@@ -38,15 +46,15 @@ struct parser {
 };
 
 static int define(environment** env, const char* name, expl_value value);
-static expl_node* expression(parser* p);
-static expl_node* list(parser* p);
+static expression* parse_expression(parser* p);
+static expression* list(parser* p);
 static expl_value* lookup(environment* env, const char* name);
-expl_node* parse(const char* source);
-static expl_node* value(parser* p, expl_type type);
+expression* parse(const char* source);
+static expression* value(parser* p, expl_type type);
 
-static expl_value eval(expl_node* n, environment** env);
-static expl_value eval_call(expl_node* args, environment** env);
-static expl_value eval_fn(expl_node* args, environment** env);
+static expl_value eval(expression* n, environment** env);
+static expl_value eval_call(expression* args, environment** env);
+static expl_value eval_fn(expression* args, environment** env);
 static expl_value eval_user(function* f, int argc, expl_value* argv, environment** env);
 static int register_native(environment** env, const char* name, expl_native fn, void* data);
 
@@ -54,8 +62,8 @@ static void skip_space(parser* p);
 static char* _strndup(const char* src, size_t len);
 static void unescape(char* src);
 
-static expl_node* new_node(expl_type type);
-static void free_node(expl_node* node);
+static expression* new_node(expl_type type);
+static void free_node(expression* node);
 static void free_environment(environment* env);
 
 static int
@@ -78,8 +86,8 @@ define(environment** env, const char* name, expl_value value)
 	return 1;
 }
 
-static expl_node*
-expression(parser* p)
+static expression*
+parse_expression(parser* p)
 {
 	skip_space(p);
 	switch (p->src[p->pos]) {
@@ -96,11 +104,11 @@ expression(parser* p)
 	}
 }
 
-static expl_node*
+static expression*
 list(parser* p)
 {
-	expl_node* node = NULL;
-	expl_node** next = NULL;
+	expression* node = NULL;
+	expression** next = NULL;
 
 	advance(p);
 
@@ -114,7 +122,7 @@ list(parser* p)
 
 	skip_space(p);
 	while (!current_char(p, ')') && !current_char(p, '\0')) {
-		*next = expression(p);
+		*next = parse_expression(p);
 		if (!*next) {
 			free_node(node);
 			return NULL;
@@ -146,12 +154,12 @@ lookup(environment* env, const char* name)
 	return NULL;
 }
 
-expl_node*
+expression*
 parse(const char* source)
 {
 	parser p = { 0 };
-	expl_node* head = NULL;
-	expl_node** next = &head;
+	expression* head = NULL;
+	expression** next = &head;
 
 	if (!source)
 		return NULL;
@@ -159,7 +167,7 @@ parse(const char* source)
 
 	skip_space(&p);
 	while (!current_char(&p, '\0')) {
-		*next = expression(&p);
+		*next = parse_expression(&p);
 		if (!*next) {
 			free_node(head);
 			return NULL;
@@ -172,10 +180,10 @@ parse(const char* source)
 	return head;
 }
 
-static expl_node*
+static expression*
 value(parser* p, expl_type type)
 {
-	expl_node* node = NULL;
+	expression* node = NULL;
 	size_t start = 0;
 
 	if (type == EXPL_TYPE_STRING)
@@ -229,7 +237,7 @@ value(parser* p, expl_type type)
 }
 
 static expl_value
-eval(expl_node* n, environment** env)
+eval(expression* n, environment** env)
 {
 	expl_value result = { 0 };
 	expl_value* v;
@@ -265,12 +273,12 @@ eval(expl_node* n, environment** env)
 }
 
 static expl_value
-eval_call(expl_node* n, environment** env)
+eval_call(expression* n, environment** env)
 {
 	expl_value result = { 0 };
 	expl_value* fn = NULL;
 	expl_value* argv = NULL;
-	expl_node* arg = NULL;
+	expression* arg = NULL;
 	function* f = NULL;
 	int argc = 0;
 	int i = 0;
@@ -312,10 +320,10 @@ eval_call(expl_node* n, environment** env)
 }
 
 static expl_value
-eval_fn(expl_node* args, environment** env)
+eval_fn(expression* args, environment** env)
 {
 	expl_value result = { 0 };
-	expl_node* name = NULL;
+	expression* name = NULL;
 	function* f = NULL;
 
 	name = args;
@@ -347,9 +355,9 @@ static expl_value
 eval_user(function* f, int argc, expl_value* argv, environment** env)
 {
 	environment* local = *env;
-	expl_node* param = f->args;
+	expression* param = f->args;
 	environment* next = NULL;
-	expl_node* body = NULL;
+	expression* body = NULL;
 	expl_value result = { 0 };
 	int i;
 
@@ -457,10 +465,10 @@ unescape(char* src)
 	*dst = '\0';
 }
 
-static expl_node*
+static expression*
 new_node(expl_type type)
 {
-	expl_node* node = malloc(sizeof(*node));
+	expression* node = malloc(sizeof(*node));
 	if (!node)
 		return NULL;
 
@@ -473,7 +481,7 @@ new_node(expl_type type)
 }
 
 static void
-free_node(expl_node* node)
+free_node(expression* node)
 {
 	if (!node)
 		return;
@@ -530,8 +538,8 @@ expl_value
 expl_run(expl* ctx, const char* source)
 {
 	expl_value result = { 0 };
-	expl_node* program = NULL;
-	expl_node* n = NULL;
+	expression* program = NULL;
+	expression* n = NULL;
 
 	if (!ctx || !source)
 		return result;
@@ -555,34 +563,6 @@ expl_run(expl* ctx, const char* source)
 	return result;
 }
 
-void
-expl_print(const expl_node* node, int depth)
-{
-	int i;
-
-	while (node) {
-		for (i = 0; i < depth; i++)
-			printf(EXPL_SPACES);
-
-		switch (node->type) {
-		case EXPL_TYPE_ATOM:
-			printf("ATOM: %s\n", node->value);
-			break;
-		case EXPL_TYPE_STRING:
-			printf("STRING: %s\n", node->value);
-			break;
-		case EXPL_TYPE_LIST:
-			printf("LIST:\n");
-			expl_print(node->child, depth + 1);
-			break;
-		default:
-			printf("UNKNOWN TYPE\n");
-		}
-
-		node = node->next;
-	}
-}
-
 #if 1
 static expl_value
 birds_who_hit_my_window(int argc, const expl_value* argv, void* data)
@@ -600,7 +580,7 @@ birds_who_hit_my_window(int argc, const expl_value* argv, void* data)
 }
 
 #define FIND_THE_BIRDS \
-"(fn foo (x) (birds_who_hit_window x))\n" \
+"(fn foo (x) (birds_who_hit_my_window x))\n" \
 "(foo 134)\n"
 
 int

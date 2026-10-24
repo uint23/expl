@@ -1,10 +1,6 @@
 #ifndef EXPL_H
 #define EXPL_H
 
-#ifndef EXPL_SPACES
-#define EXPL_SPACES "  "
-#endif /* EXPL_SPACES */
-
 typedef enum {
 	EXPL_TYPE_ATOM,
 	EXPL_TYPE_STRING,
@@ -33,18 +29,11 @@ typedef enum {
 	EXPL_ERR_COUNT
 } expl_error;
 
-typedef struct expl_node expl_node;
+typedef struct expression expression;
 typedef struct expl_value expl_value;
 typedef struct expl expl;
 
 typedef expl_value (*expl_native)(int argc, const expl_value* argv, void* data);
-
-struct expl_node {
-	char*      value;
-	expl_type  type;
-	expl_node* child;
-	expl_node* next;
-};
 
 struct expl_value {
 	expl_value_type type;
@@ -59,7 +48,6 @@ expl* expl_init(void);
 void expl_close(expl* ctx);
 int expl_register(expl* ctx, const char* name, expl_native fn, void* data);
 expl_value expl_run(expl* ctx, const char* source);
-void expl_print(const expl_node* node, int depth);
 
 #endif /* EXPL_H */
 

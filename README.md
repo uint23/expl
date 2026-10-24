@@ -26,7 +26,7 @@ birds_who_hit_my_window(int argc, const expl_value* argv, void* data)
 }
 
 #define FIND_THE_BIRDS \
-"(fn foo (x) (birds_who_hit_window x))\n" \
+"(fn foo (x) (birds_who_hit_my_window x))\n" \
 "(foo 134)\n"
 
 int
