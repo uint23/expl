@@ -44,9 +44,20 @@ struct expl_value {
 	} as;
 };
 
+/* create a new context and initialize it
+   returns context on success, NULL on failure */
 expl* expl_init(void);
+
+/* free given context and resources */
 void expl_close(expl* ctx);
+
+/* register a native function in the given context
+   returns 1 on success, 0 on failure */
 int expl_register(expl* ctx, const char* name, expl_native fn, void* data);
+
+/* run the source code in the given context
+   returns the result of expression evaluated, return->type is EXPL_VALUE_NIL on
+   failure */
 expl_value expl_run(expl* ctx, const char* source);
 
 #endif /* EXPL_H */
