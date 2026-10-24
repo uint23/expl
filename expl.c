@@ -478,15 +478,10 @@ unescape(char* src)
 static expression*
 new_node(expression_type type)
 {
-	expression* node = malloc(sizeof(*node));
+	expression* node = calloc(1, sizeof(*node));
 	if (!node)
 		return NULL;
-
 	node->type = type;
-	node->value = NULL;
-	node->child = NULL;
-	node->next = NULL;
-
 	return node;
 }
 
