@@ -503,12 +503,13 @@ void expl_close(expl* ctx)
 int
 expl_register(expl* ctx, const char* name, expl_native fn, void* data)
 {
-	function* f = calloc(1, sizeof(*f));
+	function* f = NULL;
 	expl_value value = { 0 };
 
 	if (!f || !ctx || !name || !fn)
 		return 0;
 
+	f = calloc(1, sizeof(*f));
 	f->native = fn;
 	f->data = data;
 
