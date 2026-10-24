@@ -342,6 +342,10 @@ free_environment(environment* env)
 {
 	while (env) {
 		environment* next = env->next;
+
+		if (env->value.type == EXPL_VALUE_FUNCTION)
+			free(env->value.as.function);
+
 		free(env->name);
 		free(env);
 		env = next;
