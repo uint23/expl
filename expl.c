@@ -5,10 +5,12 @@
 
 #include "expl.h"
 
-#define current_char(p, c) ((p)->src[(p)->pos] == (c))
-#define advance(p) ((p)->pos++)
-#define pos(p) ((p)->pos)
-#define peek(p) ((p)->src[(p)->pos + 1])
+#define current(p)    ((p)->src[(p)->pos])
+#define peek(p)       ((p)->src[(p)->pos + 1])
+#define is(p, c)      (current(p) == (c))
+#define end(p)        (is(p, '\0'))
+#define advance(p)    ((p)->pos++)
+#define length(p, s)  ((p)->pos - (s))
 
 typedef enum {
 	EXPRESSION_TYPE_ATOM,
@@ -98,7 +100,7 @@ static expression*
 parse_expression(parser* p)
 {
 	skip_space(p);
-	switch (p->src[p->pos]) {
+	switch (current(p)) {
 	case '"':
 		return value(p, EXPRESSION_TYPE_STRING);
 	case '(':
@@ -129,7 +131,7 @@ list(parser* p)
 	next = &node->child;
 
 	skip_space(p);
-	while (!current_char(p, ')') && !current_char(p, '\0')) {
+	while (!is(p, ')') && !end(p)) {
 		*next = parse_expression(p);
 		if (!*next) {
 			free_node(node);
@@ -140,7 +142,7 @@ list(parser* p)
 		skip_space(p);
 	}
 
-	if (current_char(p, '\0')) {
+	if (end(p)) {
 		p->err = EXPL_ERR_EXPECTED_LIST;
 		free_node(node);
 		return NULL;
@@ -174,7 +176,7 @@ parse(const char* source)
 	p.src = source;
 
 	skip_space(&p);
-	while (!current_char(&p, '\0')) {
+	while (!end(&p)) {
 		*next = parse_expression(&p);
 		if (!*next) {
 			free_node(head);
@@ -200,21 +202,21 @@ value(parser* p, expression_type type)
 	start = p->pos;
 
 	if (type == EXPRESSION_TYPE_STRING) {
-		while (!current_char(p, '"') && !current_char(p, '\0')) {
-			if (current_char(p, '\\') && p->src[p->pos + 1])
+		while (!is(p, '"') && !end(p)) {
+			if (is(p, '\\') && peek(p))
 				advance(p);
 			advance(p);
 		}
 
-		if (current_char(p, '\0')) {
+		if (end(p)) {
 			p->err = EXPL_ERR_EXPECTED_STRING;
 			return NULL;
 		}
 	}
 	else {
-		while (p->src[p->pos] &&
-		       !strchr("();\"", p->src[p->pos]) &&
-		       !isspace((unsigned char)p->src[p->pos]))
+		while (!end(p) &&
+		       !strchr("();\"", current(p)) &&
+		       !isspace((unsigned char)current(p)))
 			advance(p);
 	}
 
@@ -229,7 +231,7 @@ value(parser* p, expression_type type)
 		return NULL;
 	}
 
-	node->value = _strndup(p->src + start, p->pos - start);
+	node->value = _strndup(p->src + start, length(p, start));
 	if (!node->value) {
 		free_node(node);
 		p->err = EXPL_ERR_OUT_OF_MEMORY;
@@ -418,10 +420,10 @@ register_native(environment** env, const char* name, expl_native fn, void* data)
 static void
 skip_space(parser* p)
 {
-	while (isspace((unsigned char)p->src[p->pos]) || current_char(p, ';')) {
+	while (isspace((unsigned char)current(p)) || is(p, ';')) {
 		/* comment */
-		if (current_char(p, ';')) {
-			while (!current_char(p, '\n') && !current_char(p, '\0'))
+		if (is(p, ';')) {
+			while (!is(p, '\n') && !end(p))
 				advance(p);
 		}
 
