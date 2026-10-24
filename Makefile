@@ -11,3 +11,5 @@ compile_flags:
 	for f in ${CFLAGS}; do echo $$f >> compile_flags.txt; do
 
 
+compile_flags:
+	printf '%s\n' ${CFLAGS} > compile_flags.txt
