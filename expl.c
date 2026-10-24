@@ -66,7 +66,6 @@ static expl_value eval(expression* n, environment** env);
 static expl_value eval_call(expression* args, environment** env);
 static expl_value eval_fn(expression* args, environment** env);
 static expl_value eval_user(function* f, int argc, expl_value* argv, environment** env);
-static int register_native(environment** env, const char* name, expl_native fn, void* data);
 
 static void skip_space(parser* p);
 static char* _strndup(const char* src, size_t len);
@@ -392,31 +391,6 @@ eval_user(function* f, int argc, expl_value* argv, environment** env)
 	return result;
 }
 
-static int
-register_native(environment** env, const char* name, expl_native fn, void* data)
-{
-	function* f = malloc(sizeof(*f));
-	expl_value value = { 0 };
-
-	if (!f)
-		return 0;
-
-	f->native = fn;
-	f->args = NULL;
-	f->body = NULL;
-	f->data = data;
-
-	value.type = EXPL_VALUE_FUNCTION;
-	value.as.function = f;
-
-	if (!define(env, name, value)) {
-		free(f);
-		return 0;
-	}
-
-	return 1;
-}
-
 static void
 skip_space(parser* p)
 {
@@ -533,10 +507,24 @@ void expl_close(expl* ctx)
 int
 expl_register(expl* ctx, const char* name, expl_native fn, void* data)
 {
-	if (!ctx || !name || !fn)
+	function* f = calloc(1, sizeof(*f));
+	expl_value value = { 0 };
+
+	if (!f || !ctx || !name || !fn)
 		return 0;
 
-	return register_native(&ctx->env, name, fn, data);
+	f->native = fn;
+	f->data = data;
+
+	value.type = EXPL_VALUE_FUNCTION;
+	value.as.function = f;
+
+	if (!define(&ctx->env, name, value)) {
+		free(f);
+		return 0;
+	}
+
+	return 1;
 }
 
 expl_value
