@@ -197,34 +197,75 @@ value(parser* p, expl_type type)
 static expl_value
 eval(expl_node* n, environment** env)
 {
-	char* end = NULL;
+	expl_value result = { 0 };
+	expl_value* v;
+	char* end;
 
 	if (!n)
-		return NULL;
+		return result;
 
 	switch (n->type) {
 	case EXPL_TYPE_STRING:
-		return n;
+		result.type = EXPL_VALUE_STRING;
+		result.as.string = n->value;
+		return result;
 
 	case EXPL_TYPE_ATOM:
-		strtod(n->value, &end);
-		if (end != n->value && !*end)
-			return n;
+		result.as.number = strtod(n->value, &end);
+		if (end != n->value && !*end) {
+			result.type = EXPL_VALUE_NUMBER;
+			return result;
+		}
 
-		return lookup(*env, n->value);
+		v = lookup(*env, n->value);
+		if (v)
+			return *v;
+		return result;
 
 	case EXPL_TYPE_LIST:
-		/* XXX */
-		return NULL;
+		return eval_call(n, env);
 
 	default:
-		return NULL;
+		return result;
 	}
 }
 
-static expl_node*
-eval_let(expl_node* args, environment** env)
+static expl_value
+eval_call(expl_node* n, environment** env)
 {
+	expl_value result = { 0 };
+	expl_value* fn = NULL;
+	expl_value* argv = NULL;
+	expl_node* arg = NULL;
+	int argc = 0;
+
+	if (!n->child || n->child->type != EXPL_TYPE_ATOM)
+		return result;
+
+	fn = lookup(*env, n->child->value);
+	if (!fn || fn->type != EXPL_VALUE_FUNCTION)
+		return result;
+
+	/* count args */
+	for (arg = n->child->next; arg; arg = arg->next)
+		argc++;
+
+	argv = argc ? malloc(argc * sizeof(*argv)) : NULL;
+	if (argc && !argv)
+		return result;
+
+	argc = 0;
+	for (arg = n->child->next; arg; arg = arg->next)
+		argv[argc++] = eval(arg, env);
+
+	/* call native fn if it exists */
+	if (((function*)fn->as.function)->native)
+		result = ((function*)fn->as.function)->native(argc, argv);
+
+	free(argv);
+	return result;
+}
+
 static int
 register_native(environment** env, const char* name, expl_native fn)
 {
