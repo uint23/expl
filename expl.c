@@ -10,6 +10,14 @@
 #define pos(p) ((p)->pos)
 #define peek(p) ((p)->src[(p)->pos + 1])
 
+typedef enum {
+	EXPRESSION_TYPE_ATOM,
+	EXPRESSION_TYPE_STRING,
+	EXPRESSION_TYPE_LIST,
+
+	EXPRESSION_TYPE_COUNT
+} expression_type;
+
 typedef struct environment environment;
 typedef struct function function;
 typedef struct parser parser;
@@ -34,7 +42,7 @@ struct function {
 
 struct expression {
 	char*      value;
-	expl_type  type;
+	expression_type  type;
 	expression* child;
 	expression* next;
 };
@@ -50,7 +58,7 @@ static expression* parse_expression(parser* p);
 static expression* list(parser* p);
 static expl_value* lookup(environment* env, const char* name);
 expression* parse(const char* source);
-static expression* value(parser* p, expl_type type);
+static expression* value(parser* p, expression_type type);
 
 static expl_value eval(expression* n, environment** env);
 static expl_value eval_call(expression* args, environment** env);
@@ -62,7 +70,7 @@ static void skip_space(parser* p);
 static char* _strndup(const char* src, size_t len);
 static void unescape(char* src);
 
-static expression* new_node(expl_type type);
+static expression* new_node(expression_type type);
 static void free_node(expression* node);
 static void free_environment(environment* env);
 
@@ -92,7 +100,7 @@ parse_expression(parser* p)
 	skip_space(p);
 	switch (p->src[p->pos]) {
 	case '"':
-		return value(p, EXPL_TYPE_STRING);
+		return value(p, EXPRESSION_TYPE_STRING);
 	case '(':
 		return list(p);
 	case ')':
@@ -100,7 +108,7 @@ parse_expression(parser* p)
 		p->err = EXPL_ERR_UNEXPECTED_TOKEN;
 		return NULL;
 	default:
-		return value(p, EXPL_TYPE_ATOM);
+		return value(p, EXPRESSION_TYPE_ATOM);
 	}
 }
 
@@ -112,7 +120,7 @@ list(parser* p)
 
 	advance(p);
 
-	node = new_node(EXPL_TYPE_LIST);
+	node = new_node(EXPRESSION_TYPE_LIST);
 	if (!node) {
 		p->err = EXPL_ERR_OUT_OF_MEMORY;
 		return NULL;
@@ -181,17 +189,17 @@ parse(const char* source)
 }
 
 static expression*
-value(parser* p, expl_type type)
+value(parser* p, expression_type type)
 {
 	expression* node = NULL;
 	size_t start = 0;
 
-	if (type == EXPL_TYPE_STRING)
+	if (type == EXPRESSION_TYPE_STRING)
 		advance(p);
 
 	start = p->pos;
 
-	if (type == EXPL_TYPE_STRING) {
+	if (type == EXPRESSION_TYPE_STRING) {
 		while (!current_char(p, '"') && !current_char(p, '\0')) {
 			if (current_char(p, '\\') && p->src[p->pos + 1])
 				advance(p);
@@ -210,7 +218,7 @@ value(parser* p, expl_type type)
 			advance(p);
 	}
 
-	if (start == p->pos && type == EXPL_TYPE_ATOM) {
+	if (start == p->pos && type == EXPRESSION_TYPE_ATOM) {
 		p->err = EXPL_ERR_EXPECTED_ATOM;
 		return NULL;
 	}
@@ -228,7 +236,7 @@ value(parser* p, expl_type type)
 		return NULL;
 	}
 
-	if (type == EXPL_TYPE_STRING) {
+	if (type == EXPRESSION_TYPE_STRING) {
 		unescape(node->value);
 		advance(p);
 	}
@@ -247,12 +255,12 @@ eval(expression* n, environment** env)
 		return result;
 
 	switch (n->type) {
-	case EXPL_TYPE_STRING:
+	case EXPRESSION_TYPE_STRING:
 		result.type = EXPL_VALUE_STRING;
 		result.as.string = n->value;
 		return result;
 
-	case EXPL_TYPE_ATOM:
+	case EXPRESSION_TYPE_ATOM:
 		result.as.number = strtod(n->value, &end);
 		if (end != n->value && !*end) {
 			result.type = EXPL_VALUE_NUMBER;
@@ -264,7 +272,7 @@ eval(expression* n, environment** env)
 			return *v;
 		return result;
 
-	case EXPL_TYPE_LIST:
+	case EXPRESSION_TYPE_LIST:
 		return eval_call(n, env);
 
 	default:
@@ -283,7 +291,7 @@ eval_call(expression* n, environment** env)
 	int argc = 0;
 	int i = 0;
 
-	if (!n->child || n->child->type != EXPL_TYPE_ATOM)
+	if (!n->child || n->child->type != EXPRESSION_TYPE_ATOM)
 		return result;
 	
 	/* defined function */
@@ -327,9 +335,9 @@ eval_fn(expression* args, environment** env)
 	function* f = NULL;
 
 	name = args;
-	if (!name || name->type != EXPL_TYPE_ATOM ||
+	if (!name || name->type != EXPRESSION_TYPE_ATOM ||
 	    !name->next || !name->next->next ||
-	    name->next->type != EXPL_TYPE_LIST)
+	    name->next->type != EXPRESSION_TYPE_LIST)
 		return result;
 
 	f = malloc(sizeof(*f));
@@ -466,7 +474,7 @@ unescape(char* src)
 }
 
 static expression*
-new_node(expl_type type)
+new_node(expression_type type)
 {
 	expression* node = malloc(sizeof(*node));
 	if (!node)

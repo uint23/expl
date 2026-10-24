@@ -2,14 +2,6 @@
 #define EXPL_H
 
 typedef enum {
-	EXPL_TYPE_ATOM,
-	EXPL_TYPE_STRING,
-	EXPL_TYPE_LIST,
-
-	EXPL_TYPE_COUNT
-} expl_type;
-
-typedef enum {
 	EXPL_VALUE_NIL,
 	EXPL_VALUE_NUMBER,
 	EXPL_VALUE_STRING,
