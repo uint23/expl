@@ -35,6 +35,7 @@ typedef enum {
 
 typedef struct expl_node expl_node;
 typedef struct expl_value expl_value;
+typedef struct expl expl;
 
 typedef expl_value (*expl_native)(int argc, const expl_value* argv);
 
@@ -54,8 +55,11 @@ struct expl_value {
 	} as;
 };
 
+expl* expl_init(void);
+void expl_close(expl* ctx);
+int expl_register(expl* ctx, const char* name, expl_native fn);
+expl_value expl_run(expl* ctx, const char* source);
 void expl_print(const expl_node* node, int depth);
-expl_node* expl_parse(const char* source);
 
 #endif /* EXPL_H */
 
