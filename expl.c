@@ -32,13 +32,13 @@ static expl_node* list(parser* p);
 static expl_node* lookup(environment* env, const char* name);
 static expl_node* value(parser* p, expl_type type);
 
-static void skipspace(parser* p);
+static void skip_space(parser* p);
 static char* _strndup(const char* src, size_t len);
 static void unescape(char* src);
 
-static expl_node* newnode(expl_type type);
-static void freenode(expl_node* node);
-static void freeenv(environment* env);
+static expl_node* new_node(expl_type type);
+static void free_node(expl_node* node);
+static void free_environment(environment* env);
 
 static int
 define(environment** env, const char* name, expl_node* value)
@@ -63,7 +63,7 @@ define(environment** env, const char* name, expl_node* value)
 static expl_node*
 expression(parser* p)
 {
-	skipspace(p);
+	skip_space(p);
 	switch (p->src[p->pos]) {
 	case '"':
 		return value(p, EXPL_TYPE_STRING);
@@ -95,7 +95,7 @@ list(parser* p)
 
 	advance(p);
 
-	node = newnode(EXPL_TYPE_LIST);
+	node = new_node(EXPL_TYPE_LIST);
 	if (!node) {
 		p->err = EXPL_ERR_OUT_OF_MEMORY;
 		return NULL;
@@ -103,21 +103,21 @@ list(parser* p)
 
 	next = &node->child;
 
-	skipspace(p);
+	skip_space(p);
 	while (!current_char(p, ')') && !current_char(p, '\0')) {
 		*next = expression(p);
 		if (!*next) {
-			freenode(node);
+			free_node(node);
 			return NULL;
 		}
 
 		next = &(*next)->next;
-		skipspace(p);
+		skip_space(p);
 	}
 
 	if (current_char(p, '\0')) {
 		p->err = EXPL_ERR_EXPECTED_LIST;
-		freenode(node);
+		free_node(node);
 		return NULL;
 	}
 
@@ -172,7 +172,7 @@ value(parser* p, expl_type type)
 		return NULL;
 	}
 
-	node = newnode(type);
+	node = new_node(type);
 	if (!node) {
 		p->err = EXPL_ERR_OUT_OF_MEMORY;
 		return NULL;
@@ -180,7 +180,7 @@ value(parser* p, expl_type type)
 
 	node->value = _strndup(p->src + start, p->pos - start);
 	if (!node->value) {
-		freenode(node);
+		free_node(node);
 		p->err = EXPL_ERR_OUT_OF_MEMORY;
 		return NULL;
 	}
@@ -194,7 +194,7 @@ value(parser* p, expl_type type)
 }
 
 static void
-skipspace(parser* p)
+skip_space(parser* p)
 {
 	while (isspace((unsigned char)p->src[p->pos]) || current_char(p, ';')) {
 		/* comment */
@@ -252,7 +252,7 @@ unescape(char* src)
 }
 
 static expl_node*
-newnode(expl_type type)
+new_node(expl_type type)
 {
 	expl_node* node = malloc(sizeof(*node));
 	if (!node)
@@ -267,7 +267,7 @@ newnode(expl_type type)
 }
 
 static void
-freenode(expl_node* node)
+free_node(expl_node* node)
 {
 	if (!node)
 		return;
@@ -275,14 +275,14 @@ freenode(expl_node* node)
 	if (node->value)
 		free(node->value);
 
-	freenode(node->child);
-	freenode(node->next);
+	free_node(node->child);
+	free_node(node->next);
 
 	free(node);
 }
 
 static void
-freeenv(environment* env)
+free_environment(environment* env)
 {
 	while (env) {
 		environment* next = env->next;
@@ -303,16 +303,16 @@ expl_parse(const char* source)
 		return NULL;
 	p.src = source;
 
-	skipspace(&p);
+	skip_space(&p);
 	while (!current_char(&p, '\0')) {
 		*next = expression(&p);
 		if (!*next) {
-			freenode(head);
+			free_node(head);
 			return NULL;
 		}
 
 		next = &(*next)->next;
-		skipspace(&p);
+		skip_space(&p);
 	}
 
 	return head;
@@ -350,9 +350,9 @@ expl_print(const expl_node* node, int depth)
 int
 main(void)
 {
-	expl_node* node = expl_parse("(fn (\"hi\" x) (* x x))");
+	expl_node* node = expl_parse("(fn square (x \"hi\") (* x x))");
 	expl_print(node, 0);
-	freenode(node);
+	free_node(node);
 	return EXIT_SUCCESS;
 }
 #endif
