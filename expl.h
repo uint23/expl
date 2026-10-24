@@ -3,7 +3,7 @@
 
 #ifndef EXPL_SPACES
 #define EXPL_SPACES "  "
-#endif
+#endif /* EXPL_SPACES */
 
 typedef enum {
 	EXPL_TYPE_ATOM,
@@ -35,6 +35,8 @@ typedef enum {
 
 typedef struct expl_node expl_node;
 typedef struct expl_value expl_value;
+
+typedef expl_value (*expl_native)(int argc, const expl_value* argv);
 
 struct expl_node {
 	char*      value;

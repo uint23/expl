@@ -15,13 +15,14 @@ typedef struct environment environment;
 typedef struct parser parser;
 
 struct function {
-	expl_node* args;
-	expl_node* body;
+	expl_native native;
+	expl_node*  args;
+	expl_node*  body;
 };
 
 struct environment {
 	char*        name;
-	expl_node*   value;
+	expl_value   value;
 	environment* next;
 };
 
@@ -31,14 +32,15 @@ struct parser {
 	expl_error  err;
 };
 
-static int define(environment** env, const char* name, expl_node* value);
+static int define(environment** env, const char* name, expl_value value);
 static expl_node* expression(parser* p);
 static expl_node* list(parser* p);
-static expl_node* lookup(environment* env, const char* name);
+static expl_value* lookup(environment* env, const char* name);
 static expl_node* value(parser* p, expl_type type);
 
-static expl_node* eval(expl_node* n, environment** env);
-static expl_node* eval_let(expl_node* args, environment** env);
+static expl_value eval(expl_node* n, environment** env);
+static expl_value eval_call(expl_node* args, environment** env);
+static int register_native(environment** env, const char* name, expl_native fn);
 
 static void skip_space(parser* p);
 static char* _strndup(const char* src, size_t len);
@@ -49,7 +51,7 @@ static void free_node(expl_node* node);
 static void free_environment(environment* env);
 
 static int
-define(environment** env, const char* name, expl_node* value)
+define(environment** env, const char* name, expl_value value)
 {
 	environment* b = malloc(sizeof(*b));
 	if (!b)
@@ -124,12 +126,12 @@ list(parser* p)
 	return node;
 }
 
-static expl_node*
+static expl_value*
 lookup(environment* env, const char* name)
 {
 	while (env) {
 		if (strcmp(env->name, name) == 0)
-			return env->value;
+			return &env->value;
 		env = env->next;
 	}
 
@@ -192,8 +194,8 @@ value(parser* p, expl_type type)
 	return node;
 }
 
-static expl_node*
-evaluate(expl_node* n, environment** env)
+static expl_value
+eval(expl_node* n, environment** env)
 {
 	char* end = NULL;
 
@@ -223,6 +225,28 @@ evaluate(expl_node* n, environment** env)
 static expl_node*
 eval_let(expl_node* args, environment** env)
 {
+static int
+register_native(environment** env, const char* name, expl_native fn)
+{
+	function* f = malloc(sizeof(*f));
+	expl_value value = { 0 };
+
+	if (!f)
+		return 0;
+
+	f->native = fn;
+	f->args = NULL;
+	f->body = NULL;
+
+	value.type = EXPL_VALUE_FUNCTION;
+	value.as.function = f;
+
+	if (!define(env, name, value)) {
+		free(f);
+		return 0;
+	}
+
+	return 1;
 }
 
 static void
