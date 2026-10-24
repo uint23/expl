@@ -7,7 +7,7 @@ larger configuration languages.
 For maximum compatibility, it's written in ANSI C.
 
 #### Usage
-An extract from `expl.c`:
+An extract from `test.c`:
 
 ``` c
 static expl_value
